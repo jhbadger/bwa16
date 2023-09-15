@@ -6,7 +6,6 @@
 
 library(optparse)
 library(stringr)
-library(magrittr)
 
 # read FASTA file and return data frame
 read_fasta <- function(file) {
@@ -43,7 +42,7 @@ merge_reads <- function(input, threads) {
     sample = strsplit(basename(r1[i]),"_")[[1]][1]
     merged <- str_c("merged/", sample, ".fastq.gz")
     if (!file.exists(merged)) {
-      cmd <- str_c(flash, " ", r1, " ", r2, " -t ", threads, " -z -c > ", merged)
+      cmd <- str_c(flash, " ", r1, " ", r2, " -t ", threads, " -M 250 -z -c > ", merged)
       system(cmd)
     }
   }
@@ -68,23 +67,32 @@ map_reads <- function(input, reference, threads) {
 }
 
 # make table of counts from sam files
-make_counts <- function(mapped, output, nerr, reference) {
-  seqs <- read_fasta(reference)
+make_counts <- function(nerr, reference) {
+  seqs <- read_fasta(normalizePath(reference))
   counts <- data.frame(row.names = seqs$name)
-  for(sam in Sys.glob(str_c(mapped,"/*.sam"))) {
+  for(sam in Sys.glob("./mapped/*.sam")) {
     sample <- strsplit(basename(sam),".sam")[[1]][1]
+    print(str_c("Processing ", sample)) 
     counts[, sample] <- 0
     for(line in readLines(sam)) {
-      if (str_detect(line, "XS:i:0")) {
-        hit <- fields[3]
-        n <- fields[length(fields)] %>% str_sub(6) %>% as.integer()
-        if (!is.na(n) && n <= nerr && hit !="*") {
+      fields <- strsplit(line, "\t")[[1]]
+      hit <- fields[3]
+      match <- fields[length(fields)]
+      if (str_detect(match, "XS:i:")) {
+        n <- as.integer(str_sub(match,6))
+        if (n <= nerr && hit !="*") {
+	  print(hit)
+	  if (!hit %in% row.names(counts)) {
+	     stop(str_c("hit ", hit, " is not in consortium. Problem"))
+	  }
           counts[hit, sample] <- counts[hit, sample] + 1
         }
       }
     }
+    break
   }
-  write.table(counts, file = output, sep = "\t", 
+  print(counts)
+  write.table(counts, file = "unit_table.tsv", sep = "\t", 
               quote = FALSE, row.names = TRUE)
 }
 
@@ -119,7 +127,7 @@ main <- function(args) {
 	
 		merge_reads(opt$input, opt$threads)
 		map_reads("merged/", opt$database, opt$threads)
-		make_counts("mapped", "unit_table.tsv", opt$nerr, opt$database)
+		make_counts(opt$nerr, opt$database)
 }
 
 # run main function only if run as script
