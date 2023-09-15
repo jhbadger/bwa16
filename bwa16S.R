@@ -70,30 +70,24 @@ map_reads <- function(input, reference, threads) {
 make_counts <- function(nerr, reference) {
   seqs <- read_fasta(normalizePath(reference))
   counts <- data.frame(row.names = seqs$name)
+  samtools <- Sys.which("samtools")
+  if (samtools == "") {
+    stop("No executable for samtools found.")
+  }
   for(sam in Sys.glob("./mapped/*.sam")) {
     sample <- strsplit(basename(sam),".sam")[[1]][1]
-    print(str_c("Processing ", sample)) 
-    counts[, sample] <- 0
-    for(line in readLines(sam)) {
-      fields <- strsplit(line, "\t")[[1]]
-      hit <- fields[3]
-      match <- fields[length(fields)]
-      if (str_detect(match, "XS:i:")) {
-        n <- as.integer(str_sub(match,6))
-        if (n <= nerr && hit !="*") {
-	  print(hit)
-	  if (!hit %in% row.names(counts)) {
-	     stop(str_c("hit ", hit, " is not in consortium. Problem"))
-	  }
-          counts[hit, sample] <- counts[hit, sample] + 1
-        }
-      }
+    cmd <- str_c(samtools, " view -e '[NM] <= ", nerr, "' ", sam, 
+                 " | cut -f 3 | sort | uniq -c")
+    ct <- system(cmd, intern = TRUE)
+    for(c in ct) {
+      fields <- strsplit(str_trim(c), " ")[[1]]
+      counts[fields[2], sample] <- as.integer(fields[1])
     }
-    break
   }
-  print(counts)
+  counts <- cbind(Taxon=row.names(counts), counts)
+  counts[is.na(counts)] <- 0
   write.table(counts, file = "unit_table.tsv", sep = "\t", 
-              quote = FALSE, row.names = TRUE)
+              quote = FALSE, row.names = FALSE)
 }
 
 # main function for parsing arguments and running pipeline
