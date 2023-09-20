@@ -2,7 +2,7 @@
 
 # bwa16S -- a reference based 16S analysis package
 # By Jonathan Badger
-# Version 0.95 September 11, 2023
+# Version 0.96 September 20, 2023
 
 library(optparse)
 library(stringr)
@@ -42,7 +42,7 @@ merge_reads <- function(input, threads) {
     sample = strsplit(basename(r1[i]),"_")[[1]][1]
     merged <- str_c("merged/", sample, ".fastq.gz")
     if (!file.exists(merged)) {
-      cmd <- str_c(flash, " ", r1, " ", r2, " -t ", threads, " -M 250 -z -c > ", merged)
+      cmd <- str_c(flash, " ", r1[i], " ", r2[i], " -t ", threads, " -M 250 -z -c > ", merged)
       system(cmd)
     }
   }
@@ -92,7 +92,7 @@ make_counts <- function(nerr, reference) {
 
 # main function for parsing arguments and running pipeline
 main <- function(args) {
-    version <- "0.95 14 Sept 2023"
+    version <- "0.96 20 Sept 2023"
     if (length(args)==0) {
         args <- c("-h")
     }
@@ -107,8 +107,8 @@ main <- function(args) {
                     type="numeric",
                     help ="number of threads to use (default 8"),
         make_option(c("-n", "--nerr"), action="store",
-                    type="numeric", default=2,
-                    help="maximum number of errors allowed to reference (default 2)")
+                    type="numeric", default=10,
+                    help="maximum number of errors allowed to reference (default 10)")
     )
     opt <- parse_args(OptionParser(option_list=option_list), args)
     
